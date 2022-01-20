@@ -5,7 +5,6 @@ module lz4
 #flag -L @VMODROOT/ext
 
 #include "lz4frame.h"
-
 [typedef]
 struct C.LZ4F_preferences_t {}
 
@@ -16,7 +15,7 @@ fn C.LZ4F_compressFrameBound(usize, &C.LZ4F_preferences_t) usize
 //                                 const LZ4F_preferences_t* preferencesPtr);
 fn C.LZ4F_compressFrame( dst_buffer voidptr, dst_cap usize
                        , src_buffer voidptr, src_size usize
-					   , pref &C.LZ4F_preferences_t) usize
+                       , pref &C.LZ4F_preferences_t) usize
 
 // LZ4FLIB_API unsigned    LZ4F_isError(LZ4F_errorCode_t code);   /**< tells when a function result is an error code */
 fn C.LZ4F_isError(code C.LZ4F_errorCode_t) u32
@@ -32,12 +31,12 @@ fn C.LZ4F_getVersion() u32
 //                                      const void* srcBuffer, size_t* srcSizePtr);
 [typedef]
 struct C.LZ4F_frameInfo_t {
-	contentSize u64
+    contentSize u64
 }
 
 fn C.LZ4F_getFrameInfo( dctx &C.LZ4F_dctx
-					, frameInfoPtr &C.LZ4F_frameInfo_t
-					, srcBuffer voidptr, srcSizePtr &usize) usize
+                    , frameInfoPtr &C.LZ4F_frameInfo_t
+                    , srcBuffer voidptr, srcSizePtr &usize) usize
 
 
 
@@ -49,9 +48,9 @@ struct C.LZ4F_decompressOptions_t {}
 //                                    const void* srcBuffer, size_t* srcSizePtr,
 //                                    const LZ4F_decompressOptions_t* dOptPtr);
 fn C.LZ4F_decompress(dctx &C.LZ4F_dctx,
-					dstBuffer voidptr, dstSizePtr &usize,
-					srcBuffer voidptr, srcSizePtr &usize,
-					dOptPtr &C.LZ4F_decompressOptions_t ) usize 
+                    dstBuffer voidptr, dstSizePtr &usize,
+                    srcBuffer voidptr, srcSizePtr &usize,
+                    dOptPtr &C.LZ4F_decompressOptions_t ) usize 
 
 /*! LZ4F_createDecompressionContext() :
  *  Create an LZ4F_dctx object, to track all decompression operations.
@@ -80,84 +79,84 @@ fn C.LZ4F_freeDecompressionContext(dctx &C.LZ4F_dctx) C.LZ4F_errorCode_t
 
 pub fn compress(data []byte) ?[]byte {
 
-	cap := C.LZ4F_compressFrameBound(data.len, 0)
-	mut len := get_size(cap)?
+    cap := C.LZ4F_compressFrameBound(data.len, 0)
+    mut len := get_size(cap)?
 
-	mut dst_buffer := []byte{len: len}
+    mut dst_buffer := []byte{len: len}
 
-	res := C.LZ4F_compressFrame( dst_buffer.data
-	                           , cap
-							   , data.data
-							   , data.len
-							   , 0
-							   )
+    res := C.LZ4F_compressFrame( dst_buffer.data
+                               , cap
+                               , data.data
+                               , data.len
+                               , 0
+                               )
 
-	len = get_size(res)?
-	dst_buffer.trim(len)
-	return dst_buffer
+    len = get_size(res)?
+    dst_buffer.trim(len)
+    return dst_buffer
 }
 
 pub fn decompress(data []byte) ?[]byte {
-	mut dctx := &C.LZ4F_dctx(0)
-	version := C.LZ4F_getVersion()
-	// println("version: ${version}")
-	mut e := C.LZ4F_createDecompressionContext(&dctx, version)
-	get_size(ErrorCode(e))?
+    mut dctx := &C.LZ4F_dctx(0)
+    version := C.LZ4F_getVersion()
+    // println("version: ${version}")
+    mut e := C.LZ4F_createDecompressionContext(&dctx, version)
+    get_size(ErrorCode(e))?
 
-	// release decompression context when leaving the function
-	defer {
-		C.LZ4F_freeDecompressionContext(dctx)
-	}
+    // release decompression context when leaving the function
+    defer {
+        C.LZ4F_freeDecompressionContext(dctx)
+    }
 
-	mut info := C.LZ4F_frameInfo_t{}
+    mut info := C.LZ4F_frameInfo_t{}
     mut src_size := usize(data.len)
 
-	mut s := C.LZ4F_getFrameInfo(dctx,  &info, data.data, &src_size)
-	get_size(s)?
+    mut s := C.LZ4F_getFrameInfo(dctx,  &info, data.data, &src_size)
+    get_size(s)?
 
-	println(info.contentSize)
-	
-	mut dst := []byte{cap: 4 * data.len}
+    println(info.contentSize)
+    
+    mut dst := []byte{cap: 4 * data.len}
 
-	
-	mut src := data.data
-	unsafe {
-		 src = &byte(src) + src_size
-		 src_size = usize(data.len)
-	}
+    
+    mut src := data.data
+    unsafe {
+         src = &byte(src) + src_size
+         src_size = usize(data.len)
+    }
 
-	mut buffer := []byte{len: 4 * data.len}
-	buf_size := usize(buffer.len)
-	opt := C.LZ4F_decompressOptions_t{}
+    mut buffer := []byte{len: 4 * data.len}
+    buf_size := usize(buffer.len)
+    opt := C.LZ4F_decompressOptions_t{}
 
 
-	for s > 0 {
-		ss := src_size
-		s  = C.LZ4F_decompress(dctx, buffer.data, &buf_size, src, &ss, &opt)
-		get_size(s)?
-		unsafe {
-			src = &byte(src) +  ss
-		}
-		src_size -= ss
-		buffer.trim(int(buf_size))
-		dst << buffer
-	}
-	return dst
+    for s > 0 {
+        ss := src_size
+        s  = C.LZ4F_decompress(dctx, buffer.data, &buf_size, src, &ss, &opt)
+        get_size(s)?
+        unsafe {
+            src = &byte(src) +  ss
+        }
+        src_size -= ss
+        buffer.trim(int(buf_size))
+        dst << buffer
+    }
+    return dst
 }
 
 
 fn get_size(s SizeOrError) ?int{
-	e := match s {
-		usize      { C.LZ4F_errorCode_t(s) }
-		ErrorCode  { s }
-	}
-	if C.LZ4F_isError(e) > 0 {
-		error_name := unsafe {C.LZ4F_getErrorName(e).vstring()}
-		error(error_name)
-	}
+    e := match s {
+        usize      { C.LZ4F_errorCode_t(s) }
+        ErrorCode  { s }
+    }
+    if C.LZ4F_isError(e) > 0 {
+        error_name := unsafe {C.LZ4F_getErrorName(e).vstring()}
+        error(error_name)
+    }
 
-	if s is usize {
-		return int(s)
-	}
-	return 0
+    if s is usize {
+        return int(s)
+    }
+    return 0
 }
