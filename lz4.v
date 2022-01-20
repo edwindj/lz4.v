@@ -66,24 +66,34 @@ fn C.LZ4F_decompress(dctx &C.LZ4F_dctx,
 [typedef]
 struct C.LZ4F_errorCode_t {}
 
+type ErrorCode = C.LZ4F_errorCode_t
+type SizeOrError = ErrorCode | usize
+
+
 [typedef]
 struct C.LZ4F_dctx {}
 
 fn C.LZ4F_createDecompressionContext(dctxPtr &&C.LZ4F_dctx, version u32) C.LZ4F_errorCode_t 
 
 //LZ4F_errorCode_t LZ4F_freeDecompressionContext(LZ4F_dctx* dctx);
- fn C.LZ4F_freeDecompressionContext(dctx &C.LZ4F_dctx) C.LZ4F_errorCode_t
+fn C.LZ4F_freeDecompressionContext(dctx &C.LZ4F_dctx) C.LZ4F_errorCode_t
 
 pub fn compress(data []byte) ?[]byte {
-	cap := int(C.LZ4F_compressFrameBound(data.len, 0))
-	mut dst_buffer := []byte{len: cap}
-	res := int(C.LZ4F_compressFrame( dst_buffer.data
+
+	cap := C.LZ4F_compressFrameBound(data.len, 0)
+	mut len := get_size(cap)?
+
+	mut dst_buffer := []byte{len: len}
+
+	res := C.LZ4F_compressFrame( dst_buffer.data
 	                           , cap
 							   , data.data
 							   , data.len
-							   , 0))
-	//TODO check for error
-	dst_buffer.trim(res)
+							   , 0
+							   )
+
+	len = get_size(res)?
+	dst_buffer.trim(len)
 	return dst_buffer
 }
 
@@ -92,11 +102,7 @@ pub fn decompress(data []byte) ?[]byte {
 	version := C.LZ4F_getVersion()
 	// println("version: ${version}")
 	mut e := C.LZ4F_createDecompressionContext(&dctx, version)
-
-	if C.LZ4F_isError(e) > 0 {
-		error_name := C.LZ4F_getErrorName(e)
-		println("error: ${error_name}")
-	}
+	get_size(ErrorCode(e))?
 
 	// release decompression context when leaving the function
 	defer {
@@ -107,7 +113,7 @@ pub fn decompress(data []byte) ?[]byte {
     mut src_size := usize(data.len)
 
 	mut s := C.LZ4F_getFrameInfo(dctx,  &info, data.data, &src_size)
-	check_error(s)?
+	get_size(s)?
 
 	println(info.contentSize)
 	
@@ -128,7 +134,7 @@ pub fn decompress(data []byte) ?[]byte {
 	for s > 0 {
 		ss := src_size
 		s  = C.LZ4F_decompress(dctx, buffer.data, &buf_size, src, &ss, &opt)
-		check_error(s)?
+		get_size(s)?
 		unsafe {
 			src = &byte(src) +  ss
 		}
@@ -139,18 +145,19 @@ pub fn decompress(data []byte) ?[]byte {
 	return dst
 }
 
-type ErrorCode = C.LZ4F_errorCode_t
-type SizeOrError = ErrorCode | usize
 
-fn check_error(s SizeOrError) ?{
+fn get_size(s SizeOrError) ?int{
 	e := match s {
 		usize      { C.LZ4F_errorCode_t(s) }
 		ErrorCode  { s }
 	}
 	if C.LZ4F_isError(e) > 0 {
-		error_name := unsafe {
-			tos5(C.LZ4F_getErrorName(e))
-		}
+		error_name := unsafe {C.LZ4F_getErrorName(e).vstring()}
 		error(error_name)
 	}
+
+	if s is usize {
+		return int(s)
+	}
+	return 0
 }
