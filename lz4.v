@@ -114,31 +114,36 @@ pub fn decompress(data []byte) ?[]byte {
     mut s := C.LZ4F_getFrameInfo(dctx,  &info, data.data, &src_size)
     get_size(s)?
 
-    println(info.contentSize)
+    // println(info.contentSize)
     
     mut dst := []byte{cap: 4 * data.len}
 
     
-    mut src := data.data
+    mut src := &byte(data.data)
+
     unsafe {
-         src = &byte(src) + src_size
+         src += src_size
          src_size = usize(data.len)
     }
 
     mut buffer := []byte{len: 4 * data.len}
     buf_size := usize(buffer.len)
+
     opt := C.LZ4F_decompressOptions_t{}
 
 
     for s > 0 {
-        ss := src_size
+        mut ss := src_size
         s  = C.LZ4F_decompress(dctx, buffer.data, &buf_size, src, &ss, &opt)
         get_size(s)?
+        len := int(buf_size)
+
         unsafe {
-            src = &byte(src) +  ss
+            src += len
         }
-        src_size -= ss
-        buffer.trim(int(buf_size))
+        src_size -= s
+
+        buffer.trim(len)
         dst << buffer
     }
     return dst
